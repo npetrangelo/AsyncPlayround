@@ -1,0 +1,8 @@
+[package]
+name = "AsyncPlayground"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+async-std = "1.13.0"
+tokio = { version = "1.14.1", features = ["rt-multi-thread"] }
