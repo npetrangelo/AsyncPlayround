@@ -1,4 +1,4 @@
-use std::{future::Future, pin::Pin, process::Output, sync::{mpsc::{self, Sender}, Arc}, thread::{self, JoinHandle}};
+use std::{any::Any, future::Future, pin::Pin, sync::mpsc::{self, Sender}, thread::{self, JoinHandle}};
 use tokio::runtime;
 
 fn main() {
@@ -11,21 +11,19 @@ fn main() {
 }
 
 type BoxFuture<T> = Pin<Box<dyn Future<Output=T> + Send>>;
-type FuncType<T> = Box<(dyn Fn(&mut T) -> BoxFuture<()> + Send)>;
 
 struct Runtime {
-    send: Sender<FuncType<()>>,
+    send: Sender<BoxFuture<()>>,
     handle: JoinHandle<()>
 }
 
 impl Runtime {
     fn new() -> Self {
-        let (send, recv) = mpsc::channel::<FuncType<()>>();
+        let (send, recv) = mpsc::channel::<BoxFuture<()>>();
         
         let handle = thread::spawn(move || {
             for msg in recv.iter() {
-                let foo = msg(&mut ());
-                async_std::task::spawn(foo);
+                async_std::task::spawn(msg);
             }
         });
 
@@ -34,13 +32,11 @@ impl Runtime {
 
     fn spawn<F: 'static + Send + Future<Output = ()>>(&self, f: F) {
         let _ = self.send.send(
-            Box::new(
-                move |_| Box::pin(f)
-            )
+            Box::pin(f)
         );
     }
 
-    fn join(self) {
-        self.handle.join();
+    fn join(self) -> Result<(), Box<(dyn Any + std::marker::Send + 'static)>> {
+        self.handle.join()
     }
 }
